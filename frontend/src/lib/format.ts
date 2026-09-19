@@ -6,7 +6,8 @@ export function formatMoney(amount: number | null | undefined, currency = 'USD',
   let f = moneyCache.get(key)
   if (!f) {
     try {
-      f = new Intl.NumberFormat('en-US', {
+      // Lakh/crore grouping for INR, as Indian analysts read it.
+      f = new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
         style: 'currency',
         currency,
         notation: compact ? 'compact' : 'standard',

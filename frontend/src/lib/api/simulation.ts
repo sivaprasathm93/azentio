@@ -37,24 +37,40 @@ export function impactFactor(code: string, before: Params, after: Params, countr
   }
 }
 
+export interface ImpactBaseline {
+  /** Alerts this rule raised in the window. */
+  count: number
+  /** Share of those that scored CRITICAL (0-1). */
+  criticalShare: number
+  /** Real alerts, used to name what a tighter rule would have suppressed. */
+  alerts: Alert[]
+}
+
+export function baselineFromAlerts(code: string, alerts: Alert[], windowDays = 30): ImpactBaseline {
+  const cutoff = Date.now() - windowDays * 86_400_000
+  const relevant = alerts.filter((a) => Date.parse(a.createdAt) >= cutoff && a.evidence.some((e) => e.ruleId === code))
+  return {
+    count: relevant.length,
+    criticalShare: relevant.length ? relevant.filter((a) => a.severity === 'CRITICAL').length / relevant.length : 0,
+    alerts: relevant,
+  }
+}
+
 export function estimateImpact(
   code: string,
   before: Params,
   after: Params,
-  alerts: Alert[],
+  base: ImpactBaseline,
   countries: { before: number; after: number },
   windowDays = 30,
 ): SimulationResult {
-  const cutoff = Date.now() - windowDays * 86_400_000
-  const relevant = alerts.filter((a) => Date.parse(a.createdAt) >= cutoff && a.evidence.some((e) => e.ruleId === code))
-  const current = relevant.length
+  const current = base.count
   const factor = impactFactor(code, before, after, countries.before, countries.after)
   const projected = Math.max(0, Math.round(current * factor))
   const suppressed = Math.max(0, current - projected)
   const newlyRaised = Math.max(0, projected - current)
-  const critShare = current ? relevant.filter((a) => a.severity === 'CRITICAL').length / current : 0
 
-  const samples = [...relevant]
+  const samples = [...base.alerts]
     .sort((a, b) => a.overallScore - b.overallScore)
     .slice(0, Math.min(suppressed, 5))
     .map((a) => ({ alertRef: a.alertRef, customerName: a.customerName, change: 'SUPPRESSED' as const, score: a.overallScore }))
@@ -66,7 +82,7 @@ export function estimateImpact(
     projectedAlerts: projected,
     newlyRaised,
     suppressed,
-    criticalDelta: Math.round((projected - current) * critShare),
+    criticalDelta: Math.round((projected - current) * base.criticalShare),
     source: 'estimate',
     samples,
   }

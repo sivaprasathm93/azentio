@@ -74,6 +74,8 @@ export interface LinkedAccount {
   status: string
   openedOn: string | null
   riskRating: string | null
+  balance?: number | null
+  branch?: string | null
 }
 
 export interface CustomerProfile {
@@ -91,6 +93,9 @@ export interface CustomerProfile {
   onboardedOn: string | null
   statedMonthlyIncome: number | null
   currency: string
+  segment?: string | null
+  city?: string | null
+  age?: number | null
   accounts: LinkedAccount[]
   piiMasked: boolean
 }

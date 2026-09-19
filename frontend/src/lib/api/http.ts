@@ -27,7 +27,7 @@ import {
   toTimelineTxn,
   toWatchlist,
 } from './adapters'
-import { estimateImpact } from './simulation'
+import { baselineFromAlerts, estimateImpact } from './simulation'
 import { ruleCodesForTypology } from '@/lib/typology'
 
 const page = <A, B>(p: BePage<A>, f: (a: A) => B) => ({ ...p, content: p.content.map(f) })
@@ -187,7 +187,7 @@ export const httpApi: SentinelApi = {
       req.code,
       rule.params,
       { ...rule.params, ...req.params },
-      alerts.content.map((a) => ({ ...a, evidence: a.evidence.length ? a.evidence : [] })),
+      baselineFromAlerts(req.code, alerts.content),
       { before: activeCountries, after: req.countries?.length ?? activeCountries },
     )
   },
