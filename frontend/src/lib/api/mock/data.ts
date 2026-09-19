@@ -197,30 +197,17 @@ function baseline(d: MockDb, now: number, cust: CustomerProfile, acct: LinkedAcc
   const median = (income * 0.5) / Math.max(perMonth, 1)
   const out: AMLTransaction[] = []
   for (let day = 90; day >= 3; day--) {
-    const date = new Date(now - day * 24 * H)
-    if (date.getUTCDate() === 1) {
-      out.push(
-        mkTxn(d, now, {
-          acct: acct.accountNumber,
-          dir: 'CREDIT',
-          amount: Math.round(income * 0.85),
-          cp: cust.id === 'CUST_00001' ? 'Northwind Systems Pvt Ltd' : 'R Fernandes (family)',
-          cpAcct: cust.id === 'CUST_00001' ? 'CP9000000101' : 'CP9000000202',
-          ch: 'NEFT',
-          agoH: day * 24 + 2,
-        }),
-      )
-    }
     if (rng() < perMonth / 30) {
       const [name, ch] = MERCHANTS[Math.floor(rng() * MERCHANTS.length)]
+      const receipt = rng() < 0.2
       out.push(
         mkTxn(d, now, {
           acct: acct.accountNumber,
-          dir: 'DEBIT',
-          amount: Math.round(median * (0.35 + rng() * 1.5)),
-          cp: name,
-          cpAcct: `MERCH_${name.slice(0, 4).toUpperCase()}`,
-          ch,
+          dir: receipt ? 'CREDIT' : 'DEBIT',
+          amount: Math.round(median * (0.6 + rng() * 0.8)),
+          cp: receipt ? 'UPI receipt' : name,
+          cpAcct: receipt ? 'UPI_RECEIPT' : `MERCH_${name.slice(0, 4).toUpperCase()}`,
+          ch: receipt ? 'UPI' : ch,
           agoH: day * 24 - rng() * 20,
         }),
       )
@@ -286,7 +273,7 @@ export function addAlert(d: MockDb, now: number, s: AlertSpec): AlertDetail {
     assignee: s.assignee ?? null,
     caseId: s.caseId ?? null,
     evidence,
-    aggregatedAmount: sum(all),
+    aggregatedAmount: sum(all.filter((t) => !t.counterpartyAccountId?.startsWith('ACC_'))), // internal legs are not new money
     currency: 'INR',
     hitCount: all.length,
     windowStart: new Date(Math.min(...times)).toISOString(),
@@ -377,7 +364,9 @@ function buildDb(): MockDb {
     for (const a of c.accounts) list.push(...baseline(d, now, c, a, monthlyTxns.get(a.accountNumber) ?? 12, seed++))
     d.txns.set(c.id, list)
   }
-  const avgDaily = (cid: string) => sum(d.txns.get(cid) ?? []) / 90
+  const baseAvg = new Map([...customers.keys()].map((id) => [id, sum(d.txns.get(id) ?? []) / 90]))
+  const avgDaily = (cid: string) => baseAvg.get(cid) ?? 0
+  const times = (x: number) => (x >= 100 ? 'over 100' : String(Math.round(x)))
 
   /* --- Krishna Sharma: structured cash -> own accounts -> offshore wire --------------------------------------- */
   const SAV = 'ACC_000002'
@@ -474,7 +463,7 @@ function buildDb(): MockDb {
       {
         rule: 'BEHAVIORAL_DEVIATION',
         txns: devDay,
-        explanation: `Daily transaction value of ${inr(sum(devDay))} is ${Math.round(sum(devDay) / avgDaily(krishna.id))}× the customer's 90-day daily average of ${inr(avgDaily(krishna.id))} (rule: > 3×).`,
+        explanation: `Daily transaction value of ${inr(sum(devDay))} is ${times(sum(devDay) / avgDaily(krishna.id))}× the customer's 90-day daily average of ${inr(Math.round(avgDaily(krishna.id)))} (rule: > 3×).`,
         metadata: { severity: 0.9, weight: 30, multiplier: 3 },
       },
     ],
@@ -572,7 +561,7 @@ function buildDb(): MockDb {
       {
         rule: 'BEHAVIORAL_DEVIATION',
         txns: credits.slice(0, 1),
-        explanation: `Inbound value of ${inr(sum(credits.slice(0, 1)))} is ${Math.round(sum(credits.slice(0, 1)) / avgDaily(anika.id))}× this customer's 90-day daily average of ${inr(avgDaily(anika.id))}; annual income on file is ${inr(101_869)}.`,
+        explanation: `Inbound value of ${inr(sum(credits.slice(0, 1)))} is ${times(sum(credits.slice(0, 1)) / avgDaily(anika.id))}× this customer's 90-day daily average of ${inr(Math.round(avgDaily(anika.id)))}; annual income on file is ${inr(101_869)}.`,
         metadata: { severity: 0.7, weight: 30, multiplier: 3 },
       },
     ],

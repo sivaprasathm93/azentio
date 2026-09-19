@@ -19,6 +19,7 @@ On top of the required business rules there is a set of **loss-prevention guardr
 | | |
 |---|---|
 | **Stack** | Java 21 · Spring Boot 3.3 (Web, Data JPA, Security, Validation) · PostgreSQL 16 · Flyway · springdoc-openapi · Maven · Docker |
+| **Frontend** | React 19 · TypeScript · Vite · Tailwind · TanStack Query/Table/Virtual · Zustand · React Flow · Recharts · STOMP/SockJS. See [section 17](#17-frontend-analyst-workbench) |
 | **Verified** | 77 unit tests (JUnit 5 + Mockito) · 37/37 end-to-end checks ([`scripts/smoke_test.py`](scripts/smoke_test.py)) |
 | **Bulk performance** | **12,596 transactions ingested + evaluated in 24 s** (detection 18.2 s ≈ 690 txn/s, 8 threads). Target: < 2 min |
 | **Streaming latency** | **~18 ms** server-side per transaction (≤ 160 ms round trip). Target: < 1 s |
@@ -43,6 +44,8 @@ On top of the required business rules there is a set of **loss-prevention guardr
 14. [Project structure](#14-project-structure)
 15. [Trade-offs and what I would do next](#15-trade-offs-and-what-i-would-do-next)
 16. [Interview Q&A cheat-sheet](#16-interview-qa-cheat-sheet)
+17. [Frontend (analyst workbench)](#17-frontend-analyst-workbench)
+18. [Frontend and backend mapping, known gaps](#18-frontend-and-backend-mapping-known-gaps)
 
 ---
 
@@ -70,6 +73,27 @@ docker run --rm -v sentinel-m2:/root/.m2 -v "$PWD":/app -w /app maven:3.9-eclips
 ```
 
 Reset everything: `docker compose down -v`.
+
+### Run the analyst UI
+
+Three options. A and B need Node 20.19+ or 22+; C (Docker) needs nothing extra.
+
+```bash
+# A) Demo mode: no backend needed, runs on the bundled CSV data
+cd frontend && npm install && npm run dev            # http://localhost:5173
+
+# B) Live mode against the backend started above
+#    1. in frontend/.env set: VITE_API_MODE=live, BACKEND_USER, BACKEND_PASSWORD, VITE_API_USER (same as BACKEND_USER)
+#    2. restart the dev server so it re-reads .env
+cd frontend && npm run dev
+
+# C) Everything in Docker (UI on http://localhost:3000)
+#    put base64 of "admin:<password>" in .env as FRONTEND_BASIC_AUTH, then:
+docker compose up -d --build
+```
+
+The UI has no sign-in screen; the proxy authenticates as a service account. Full details, the demo script and the
+troubleshooting table are in [section 17](#17-frontend-analyst-workbench).
 
 ---
 
@@ -412,6 +436,7 @@ backend/
     customer/ account/ reference/ audit/ dashboard/
   src/main/resources/db/migration/   V1__schema.sql, V2__reference_data.sql
   src/test/java/...                  rule tests, scorer, aggregator, guardrails, workflow, config, CSV parsing
+frontend/ React analyst UI (screens in src/features, API + mock in src/lib/api). Layout in section 17.10
 docs/     ERD.md, openapi.json
 seed/     customers.csv, accounts.csv, transactions.csv, transactions_malformed.csv, scenarios.json
 scripts/  load-seed.sh, smoke_test.py
@@ -431,12 +456,12 @@ scripts/  load-seed.sh, smoke_test.py
 | HTTP Basic, in-memory users | OIDC / JWT | Prototype scope; the role model carries over unchanged. |
 
 **Next steps:**
-- React analyst UI (queue, heatmap, timeline, case view). The API already serves every screen.
+- ~~React analyst UI~~ built (queue, workbench, rules): see [section 17](#17-frontend-analyst-workbench). Still to build in the UI: the risk heatmap and analyst-productivity dashboard (`GET /dashboard/summary` already serves them). Backend gaps that limit live mode are listed in [section 18](#18-frontend-and-backend-mapping-known-gaps).
 - Kafka ingestion.
 - Maker-checker approval for rule changes.
 - ML anomaly score as an additional weighted "rule".
-- Graph view of counterparty networks.
-- SAR narrative generation from `rule_details`.
+- Cross-customer counterparty network view (the per-case money map already exists in the UI).
+- Server-side SAR narrative generation and storage (the UI drafts one client-side from the alert explanations).
 - Rule A/B shadow mode, using the existing `rule_config_history`.
 - Partitioning `bank_transaction` by month.
 - Testcontainers integration tests in CI.
@@ -505,3 +530,213 @@ frozen at the ingestion-time rate.
 - A read replica for the analyst queries.
 - Rolling baselines pre-aggregated into a daily-totals table, instead of scanning 90 days per transaction.
 - The rule interface and the alert model stay the same.
+
+---
+
+## 17. Frontend (analyst workbench)
+
+A React single-page app in [`frontend/`](frontend/) that gives analysts the queue → investigation → disposition flow on top of the API above. It runs in two modes: a **demo mode** that needs no backend (seeded from the CSVs in `frontend/src/lib/api/mock/seed/`), and a **live mode** that talks to this Spring Boot service. Both sit behind one TypeScript interface (`SentinelApi`), so no screen knows which is active.
+
+> **Status.** Verified: strict typecheck, production build, and a smoke test over the demo data path (`npm test`, 3 tests: data load, grouping, money graph, deviation chart, SAR draft, four-eyes close rule, rule guardrails). **Not yet exercised:** live mode against a running backend, the frontend Docker image build, and visual QA in a browser. Treat those as the first things to check.
+
+### 17.1 Screens
+
+| Route | Screen | What the analyst does | Main endpoints used |
+|---|---|---|---|
+| `/alerts` | **Alert triage queue** | Watch the live header (connection status, counters, "new alerts" banner); filter by risk band, typology, assignee, date range and status; expand grouped entities; open an evidence peek; **Assign to me**, **Promote to case**, **Dismiss** | `GET /alerts`, `GET /alerts/{id}`, `POST /alerts/{id}/actions`, `POST /cases` |
+| `/cases` | Case list | Pick up an investigation | `GET /cases` |
+| `/cases/:id` | **3-pane investigation workbench** | Read the dossier, the plain-language explanation, the money map, the anomalous ledger and the deviation chart; draft the SAR narrative; escalate, request info or close; read the locked audit trail | `GET /cases/{id}`, `GET /customers/{id}`, `GET /customers/{id}/transactions`, `GET /alerts/{id}`, `GET /alerts/{id}/history`, `POST /cases/{id}/transition`, `POST /cases/{id}/notes`, `GET /watchlist` |
+| `/rules` | **Rule and typology manager** | Tune Structuring, Rapid movement and the high-risk jurisdiction list; preview the impact; commit | `GET/PATCH /rules`, `GET/POST/PATCH /watchlist` |
+
+**Queue details.**
+- The grid is windowed with TanStack Virtual, so a few hundred rows scroll smoothly. Sorting and expansion are TanStack Table.
+- *Group by entity* folds alerts for the same customer whose creation times chain within **72 hours** (the same window the backend aggregates on) into one master row: highest score, summed amount, union of typologies. A group's actions apply to every open alert inside it.
+- Keyboard: <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>→</kbd>/<kbd>←</kbd> expand/collapse, <kbd>Enter</kbd> opens the peek.
+- Streamed alerts are only *counted* until the analyst clicks the banner, so rows never jump under the cursor.
+
+**Workbench panes** (fixed height; each pane scrolls on its own):
+
+| Pane | Width | Contents |
+|---|---|---|
+| Entity dossier | 25 % | Profile, KYC tier, PEP and sanctions tags, tenure, **stated income vs 30-day velocity** meter, linked accounts (those in evidence are highlighted), alerts in the case |
+| Evidence and ledger | 50 % | Explainability card · **React Flow money map** (source → intermediary → beneficiary, with fan-in / fan-out / layering badges) · **TanStack ledger** of offending transactions with a "× baseline" column · **Recharts deviation chart** (daily value vs trailing 14-day μ ± 2σ; days above the band turn red) |
+| Disposition and audit | 25 % | State-aware action bar · SAR draft (editable, copy, export `.txt`, FinCEN or FIU wording) · notes · **locked, oldest-first audit trail** |
+
+### 17.2 Stack
+
+| Concern | Choice |
+|---|---|
+| Core | React 19, TypeScript (strict), Vite 8, React Router 7 |
+| Styling / UI | Tailwind CSS 4, shadcn-style components on Radix primitives (dialog, popover, select, tabs, tooltip, switch), Lucide icons, Sonner toasts |
+| Server state | TanStack Query v5 (caching, polling, mutations) |
+| Local UI state | Zustand (filters, keyboard selection, stream status, session) |
+| Grids | TanStack Table v8 + TanStack Virtual |
+| Graph / charts | `@xyflow/react` (React Flow) and Recharts |
+| Real time | `@stomp/stompjs` over `sockjs-client`, topic `/topic/alerts` |
+
+Design notes: a cool "steel paper" light theme and a dark theme (toggle at the bottom of the rail); risk colours are the only saturated colours on screen; Archivo (condensed labels), Public Sans (body) and IBM Plex Mono (all figures). Risk is never conveyed by colour alone: every badge also shows the score and the band name.
+
+### 17.3 Running it
+
+```bash
+cd frontend
+npm install
+npm run dev              # http://localhost:5173 (demo mode, no backend needed)
+npm run typecheck
+npm test
+npm run build            # type-checks, then bundles to frontend/dist
+```
+
+**Demo mode** is the default (`VITE_API_MODE=mock`). Use the **Demo persona** switcher at the bottom of the left rail to try Analyst, Supervisor and Admin; the mock enforces the same role rules as the backend.
+
+**Live mode.** Edit `frontend/.env`, restart `npm run dev` (Vite reads env only at start), and have the backend up:
+
+```bash
+docker compose up -d postgres backend     # from the repo root
+```
+
+**Full stack in Docker.** Put the base64 of `user:password` into the *root* `.env`, then start everything:
+
+```bash
+printf '%s' 'admin:<your-admin-password>' | base64      # paste the output as FRONTEND_BASIC_AUTH in .env
+docker compose up -d --build                             # UI on http://localhost:3000
+```
+
+| Variable | Where | Meaning |
+|---|---|---|
+| `VITE_API_MODE` | `frontend/.env` | `mock` (default) or `live` |
+| `VITE_BACKEND_URL` | `frontend/.env` | Dev-proxy target for `/api` and `/ws` (default `http://localhost:8080`) |
+| `BACKEND_USER`, `BACKEND_PASSWORD` | `frontend/.env` | Service account the **dev proxy** authenticates as. Read by `vite.config.ts` only; never bundled into the browser |
+| `VITE_API_USER` | `frontend/.env` | Public name of that same account; the UI uses it to recognise "my" alerts. Must equal `BACKEND_USER` |
+| `VITE_BASE_CURRENCY` | `frontend/.env` | Display currency for aggregates (default `INR`, matching `sentinel.base-currency`) |
+| `VITE_WS_PATH`, `VITE_ALERT_TOPIC` | `frontend/.env` | STOMP endpoint and topic (defaults `/ws`, `/topic/alerts`) |
+| `FRONTEND_BASIC_AUTH` | root `.env` | base64 `user:password`; nginx sends it to the backend as HTTP Basic. Should be the same account as `SENTINEL_ADMIN_USER` (that name is passed to the build as `VITE_API_USER`) |
+
+### 17.4 Authentication model (there is no sign-in screen)
+
+The backend uses HTTP Basic with three roles. The UI deliberately has no login form. Instead:
+- The **Vite dev proxy** (dev) or **nginx** (Docker) attaches the service account's credentials to every `/api` and `/ws` request. The password never reaches the browser bundle.
+- On start the app works out that account's roles by probing, because the backend has no `/me` endpoint: `GET /rules` (any role) confirms connectivity, `GET /audit` succeeding means SUPERVISOR or above, and a non-403 answer from the ADMIN-gated `/detection/**` means ADMIN.
+- Buttons the account may not use are disabled with a tooltip (rule editing needs ADMIN; **Escalate to SAR** and **Close case** need SUPERVISOR; closing an alert scoring ≥ 80 or with a sanctions hit needs SUPERVISOR). The server still enforces every one of these; the UI is never the only line of defence.
+
+> **Consequence to be aware of.** Every action is performed, and audited, as the single service account, not as the individual analyst at the keyboard. That is fine for a demo. For production, put the app behind OIDC/SSO and pass the real user identity through (see §15).
+
+### 17.5 Real-time layer
+
+`useAlertStream` opens **one** STOMP-over-SockJS connection for the whole app and subscribes to `/topic/alerts`. The header shows its state: *Live*, *Connecting*, *Reconnecting*, *Polling* or *Offline*. If no broker is reachable (see the gap in §18), the state settles on **Polling** and the queue refreshes every 15 s via TanStack Query, so the screen degrades instead of breaking. When the stream is live, polling slows to 60 s as a safety net. In demo mode a timer raises a fresh alert every 12–25 s so the banner, row flash and grouping can be shown.
+
+### 17.6 What each button does on the backend
+
+| UI action | Backend call | Notes |
+|---|---|---|
+| **Assign to me** | `POST /alerts/{id}/actions` `{action: START_REVIEW}` | Sets the assignee to the caller and status to `UNDER_REVIEW`; only allowed from `OPEN` |
+| **Dismiss (false positive)** | `… {action: CLOSE, disposition: FALSE_POSITIVE, reason}` | Reason (≥ 10 chars) required. Blocked in the dialog for score ≥ 80 or sanctions hits unless the account is a supervisor |
+| **Promote to case** | `POST /cases` `{alertIds, title, reason}` | Alerts must belong to one customer; they become `ESCALATED`. For a group, every open alert in it is attached |
+| **Start investigation** | `POST /cases/{id}/transition` `{INVESTIGATING}` | |
+| **Request info** | `POST /cases/{id}/notes` | Stored as a note prefixed `REQUEST FOR INFORMATION:` (the backend has no dedicated workflow) |
+| **Escalate to SAR** | `POST /cases/{id}/notes`, then `POST /cases/{id}/transition` `{SAR_FILED}` | SUPERVISOR. The backend has no SAR store, so the filed narrative is preserved as an immutable case note |
+| **Close case** | `POST /cases/{id}/transition` `{CLOSED, disposition, reason}` | SUPERVISOR. Also closes the case's escalated alerts |
+
+### 17.7 Rules screen ↔ rule parameters
+
+| Card | UI fields | Sent to `PATCH /rules/{code}` (or `/watchlist`) |
+|---|---|---|
+| **Structuring** | Target amount, delta threshold, rolling window (h), minimum transactions | `lowerAmount = target − delta`, `upperAmount = target − 0.01`, `windowHours`, `minCount` |
+| **Rapid movement** | In-to-out ratio (0–1), max elapsed time in **minutes** | `outflowRatio`, `windowHours = minutes / 60` (must be whole hours) |
+| **High-risk jurisdictions** | Searchable multi-select of ISO 3166-1 alpha-2 codes | Diffed against active `COUNTRY` watchlist entries: new codes `POST /watchlist`, removed codes `PATCH … {active: false}` |
+
+**Preview impact** opens a dry-run modal (today vs after, newly raised, suppressed, critical delta, sample suppressed alerts, and a warning when detections would drop). Nothing changes until **Commit change**. The regulatory floors in §5 are enforced by the server; a breach comes back as a `422 GUARDRAIL_VIOLATION` and is shown in the modal.
+
+### 17.8 Demo data
+
+Customers and accounts come from `frontend/src/lib/api/mock/seed/customers.csv` and `accounts.csv` (parsed at runtime). Those files hold two customers and two accounts, both accounts for `CUST_00001`. `CUST_00002` has none, so **one synthetic account (`ACC_000003`) is added for her and marked as such in the code**. Transactions and alerts are hand-authored on top; ninety days of ordinary spend are generated deterministically from each account's `avg_monthly_txn_count` and the customer's income. All timestamps are relative to "now".
+
+| Alert | Customer | Score | Scene |
+|---|---|---|---|
+| ALT-100007 | Anika Fernandes | 97 | ₹1.92L SWIFT wire to *Blue Lagoon Trading FZE* (AE), a sanctions-list counterparty. Only a supervisor may close it |
+| ALT-100006 | Anika Fernandes | 91 | **Fan-in / fan-out:** 6 senders put ₹1.71L in; 98 % leaves to 4 beneficiaries within hours |
+| ALT-100005 | Anika Fernandes | 63 | Behavioural deviation, already `UNDER_REVIEW` (groups with the two above → **×3**) |
+| ALT-100001 | Krishna Sharma | 94 | **Structuring → layering → offshore wire:** 4 cash deposits (₹7.62–8.25L) over 36 h at 3 branches, moved savings → NRE, then ₹28.8L SWIFT to *Orion Shell Holdings Ltd* (CY). `ESCALATED` in **CASE-2001** |
+| ALT-100002 | Krishna Sharma | 71 | Behavioural deviation, same case (groups with the above → **×2**) |
+| ALT-100004 | Krishna Sharma | 52 | ₹9.2L cash deposit (CTR), `OPEN`, five days old |
+| ALT-100003 | Krishna Sharma | 44 | Repeated ₹50,000 rent payments, `CLOSED` as a false positive |
+
+### 17.9 Five-minute demo script
+
+1. **Queue** (`/alerts`): point out the live header. Within ~25 s the banner *"1 new alert arrived"* appears; click **Show in queue** and the new row flashes. Expand **Anika ×3** to show grouping.
+2. **Explain**: click a row for the evidence peek (plain-language reason, rules, transactions).
+3. **Four-eyes**: on Anika's group, click **Dismiss**. The dialog blocks it: score ≥ 80 or a sanctions match needs a supervisor.
+4. **Promote**: click **Promote to case**; the workbench opens for the new case.
+5. **Investigate** (`/cases` → **CASE-2001**): read the explanation card; on the money map note the **Layering · 3 hops** badge; in the ledger see the ₹8L deposits as many-times-baseline; on the chart see the red bars above the band; open the **SAR draft**, edit a line, **Copy**, **Export**.
+6. **Segregation of duties**: switch the persona to **Supervisor**, click **Escalate to SAR**, confirm. Open **Notes** (the filed narrative) and **Audit trail** (locked, oldest first).
+7. **Tune** (`/rules`, persona **Admin**): on *Structuring* set minimum transactions to 6 → **Preview impact** shows suppressed alerts → **Commit** is refused with the regulatory-floor message. Then add **CY** to the jurisdictions, preview, commit, and go back to the case: the Cyprus node on the money map is now outlined as a watch-listed jurisdiction.
+
+### 17.10 Frontend layout
+
+```
+frontend/
+  src/
+    features/
+      alerts/   AlertsPage, IngestionHeader, AlertFilters, AlertGrid (virtualized), AlertPeek, AlertDialogs, filtering, store
+      cases/    CasesPage, CaseWorkbench (3 panes), EntityDossier, ExplainabilityCard, MoneyMap, AnomalousLedger,
+                DeviationChart, DispositionPane, SarDraft, AuditTrail, CaseDialogs
+      rules/    RulesPage (three cards, country multi-select, dry-run modal)
+      auth/     authStore (session bootstrap, role probing, demo persona)
+    components/ ui/ (button, dialog, select, popover, tabs, …), layout/AppShell, RiskBadge, ErrorBoundary
+    hooks/      useAlerts, useCases, useCaseEvidence, useRules, useAlertStream, useTheme
+    lib/
+      api/      types.ts (SentinelApi), http.ts + adapters.ts (Spring Boot), mock/ (CSV seed + in-browser backend), simulation.ts
+      realtime/ alertStream.ts (STOMP + demo stream)
+      risk.ts, grouping.ts, moneyGraph.ts, stats.ts, sar.ts, typology.ts, format.ts, fatf.ts
+    types/      domain.ts (UI models), backend.ts (wire DTOs)
+  templates/    nginx config template (injects the service credential)
+```
+
+Error handling: every workbench pane and every route sits inside an error boundary, so one failing chart does not take down the cockpit; queries show loading skeletons and inline retry panels; a 4xx is never retried automatically.
+
+---
+
+## 18. Frontend and backend mapping, known gaps
+
+### 18.1 How backend data becomes UI models
+
+The UI works against its own domain models (`Alert`, `AlertEvidence`, `AMLTransaction`, …). Only `frontend/src/lib/api/adapters.ts` knows the wire format.
+
+| UI field | Comes from | Note |
+|---|---|---|
+| `Alert.overallScore`, `severity` | `AlertSummary.riskScore` | Band is **recomputed from the score** with the UI thresholds (see below), not taken from `riskBand` |
+| `Alert.kycTier`, `customerRiskScore` | `customerRiskRating` | `LOW → tier 1 / 20`, `MEDIUM → 2 / 50`, `HIGH → 3 / 80`. The backend keeps a category, not a number |
+| `Alert.evidence[]` | list: rule codes; detail: `ruleDetails` + evidence transactions | List rows carry typology only; explanations and transaction ids arrive with the detail call |
+| `Alert.aggregatedAmount` | Σ `amountBase` of distinct evidence transactions (detail) | The list omits it, so **visible rows** fetch their detail lazily (cached 60 s). Group rows sum their children |
+| `AMLTransaction.counterpartyAccountId` | not provided | Live money-map nodes are keyed by counterparty name |
+| `AMLTransaction.isFlagged` | timeline `alertRefs` non-empty | |
+| `CustomerProfile.isPep`, `statedMonthlyIncome` | not held by the backend | Shown as "not on file"; the income-vs-velocity ratio appears only when income is present (it is in demo mode) |
+| `CustomerProfile.onboardedOn` | earliest account `openedOn` | Best available proxy for tenure |
+| `CustomerProfile.sanctionsHit` | an alert carries `HIGH_RISK_JURISDICTION` | |
+
+**Risk bands.** The product brief calls for CRITICAL 90–100, so the UI uses CRITICAL ≥ 90, HIGH 70–89, MEDIUM 40–69, LOW < 40, defined once in `frontend/src/lib/risk.ts`. The backend's own `riskBand` and its four-eyes threshold use **80**. The four-eyes rule (score ≥ 80 or sanctions) is mirrored separately in the same file, so the two are independent. Change the constant if you would rather match the backend.
+
+**Live-mode limits.** The queue asks for up to 200 alerts per query (the API maximum). Risk band, date range and multi-typology filters run in the browser over that page.
+
+### 18.2 Backend gaps and the smallest change that closes each
+
+| Gap | Effect today | Suggested backend change |
+|---|---|---|
+| No WebSocket/STOMP broker | Live mode shows **Polling** (15 s) | Add `spring-boot-starter-websocket`, expose a SockJS endpoint at `/ws`, and publish the `AlertSummary` to `/topic/alerts` from `AlertService.raise`. The UI already subscribes |
+| `AlertSummary` has no aggregate amount | One extra `GET /alerts/{id}` per visible row | Add `aggregatedAmount` (Σ distinct evidence `amount_base`) to `SUMMARY_SQL` |
+| No `GET /me` | Roles found by probing endpoints | Return `{username, roles}` and drop the probes in `http.ts` |
+| No rule simulation | Dry run is a **modelled estimate**, labelled as such | `POST /rules/{code}/simulate` returning `{currentAlerts, projectedAlerts, newlyRaised, suppressed, criticalDelta, samples}`; the UI calls it first and only falls back if it gets a 404/405 |
+| No PEP flag or stated income on `customer` | Dossier shows "not on file" | Add both columns and to `CustomerView` |
+| Single shared identity | All actions audited as one account | OIDC/JWT with per-user identity (§15) |
+
+### 18.3 Troubleshooting
+
+| Symptom | Likely cause and fix |
+|---|---|
+| Full-page error: *"The backend rejected the service credentials…"* | Wrong or missing `BACKEND_USER`/`BACKEND_PASSWORD` in `frontend/.env` (restart `npm run dev`), or `FRONTEND_BASIC_AUTH` in Docker |
+| *"Cannot reach the Sentinel API"* | Backend not running on port 8080, or `VITE_BACKEND_URL` is wrong |
+| Rules page says *"view but not change"* | The service account is not ADMIN. Use the admin credentials |
+| **Dismiss** is greyed out with a supervisor notice | The alert scores ≥ 80 or has a sanctions match. Promote it to a case instead, or use a supervisor account |
+| Header stays on **Polling** | Expected until the backend exposes `/ws` (§18.2) |
+| Amounts show "—" in the live queue | The alert detail call failed for that row; open the row to see the error |
+| Blank page after switching env | Vite only reads `.env` at start; stop and rerun `npm run dev` |

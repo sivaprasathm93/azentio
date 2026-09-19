@@ -1,5 +1,5 @@
 import type { Alert, AMLTransaction, AmlCase, CustomerProfile } from '@/types/domain'
-import { formatDate, formatDateTime, formatMoney, formatTenure } from '@/lib/format'
+import { formatDate, formatDateTime, formatMoney, formatTenure, humanizeEnum } from '@/lib/format'
 import { uniq } from '@/lib/utils'
 import { countryName } from '@/lib/fatf'
 
@@ -30,11 +30,13 @@ export function buildSarNarrative(i: SarInput): string {
   const { authority, aml, customer, alerts, flagged, preparedBy, currency } = i
   const now = i.now ?? new Date()
   const sorted = [...flagged].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
-  const total = sorted.reduce((s, t) => s + Math.abs(t.amountBase), 0)
+  // Transfers between the customer's own accounts move existing money; they are shown but not added to the total.
+  const own = new Set(customer.accounts.map((a) => a.accountNumber))
+  const total = sorted.filter((t) => !(t.counterpartyAccountId && own.has(t.counterpartyAccountId))).reduce((s, t) => s + Math.abs(t.amountBase), 0)
   const first = sorted[0]?.timestamp
   const last = sorted[sorted.length - 1]?.timestamp
   const countries = uniq(sorted.map((t) => t.counterpartyCountry)).filter((c) => c && c !== customer.country)
-  const channels = uniq(sorted.map((t) => t.channel))
+  const channels = uniq(sorted.map((t) => humanizeEnum(t.channel).toLowerCase()))
   const typologies = uniq(alerts.flatMap((a) => a.evidence.map((e) => e.typology)))
   const explanations = uniq(alerts.flatMap((a) => a.evidence.map((e) => e.explanation))).filter(Boolean)
   const authorityName = authority === 'FINCEN' ? 'FinCEN' : 'the Financial Intelligence Unit'
@@ -82,7 +84,7 @@ export function buildSarNarrative(i: SarInput): string {
   sorted.slice(0, 40).forEach((t) => {
     lines.push(
       `- ${formatDateTime(t.timestamp)}  ${t.direction === 'CREDIT' ? 'IN ' : 'OUT'}  ${formatMoney(t.amount, t.currency)}  ` +
-        `${t.channel}  ${t.direction === 'CREDIT' ? 'from' : 'to'} ${t.counterpartyName} (${t.counterpartyCountry})  ref ${t.txnRef}`,
+        `${humanizeEnum(t.channel)}  ${t.direction === 'CREDIT' ? 'from' : 'to'} ${t.counterpartyName} (${t.counterpartyCountry})  ref ${t.txnRef}`,
     )
   })
   if (sorted.length > 40) lines.push(`- … and ${sorted.length - 40} further transaction(s) listed in the case ledger.`)

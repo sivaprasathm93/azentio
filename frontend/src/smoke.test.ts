@@ -24,7 +24,8 @@ describe('demo data path', () => {
     expect(cd.customer.statedMonthlyIncome).toBe(29587)
 
     const txns = await mockApi.getCustomerTransactions(cd.case.customerId)
-    const flagged = txns.filter((t) => t.isFlagged)
+    const refs = new Set(cd.alerts.map((a) => a.alertRef))
+    const flagged = txns.filter((t) => t.alertRefs.some((r) => refs.has(r)))
     const g = buildMoneyGraph(flagged, cd.customer.accounts.map((a) => a.accountNumber))
     console.log('graph', g.nodes.length, 'nodes', g.edges.length, 'edges', g.patterns.map((p) => p.label))
     expect(g.patterns.some((p) => p.kind === 'layering')).toBe(true)
@@ -32,6 +33,9 @@ describe('demo data path', () => {
     const dev = computeDeviation(txns)
     console.log('anomalous days', dev.filter((d) => d.anomalous).map((d) => d.day), 'of', dev.length)
     expect(dev.some((d) => d.anomalous)).toBe(true)
+    const cutoff = new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10)
+    expect(dev.filter((d) => d.anomalous && d.day >= cutoff).length).toBeGreaterThanOrEqual(3) // the evidence days
+    expect(dev.filter((d) => d.anomalous && d.day < cutoff).length).toBeLessThanOrEqual(3) // background noise stays small
 
     const details = await Promise.all(cd.alerts.map((a) => mockApi.getAlert(a.id)))
     const sar = buildSarNarrative({ authority: 'FINCEN', aml: cd.case, customer: cd.customer, alerts: details, flagged, preparedBy: 'analyst', currency: 'INR' })
