@@ -16,6 +16,10 @@ On top of the required business rules there is a set of **loss-prevention guardr
 - FX fat-finger protection
 - self-healing re-evaluation of anything left unchecked
 
+Demo
+<img width="1920" height="994" alt="image" src="https://github.com/user-attachments/assets/00909777-6649-48c1-b53d-e0e2f1cf140c" />
+
+
 | | |
 |---|---|
 | **Stack** | Java 21 · Spring Boot 3.3 (Web, Data JPA, Security, Validation) · PostgreSQL 16 · Flyway · springdoc-openapi · Maven · Docker |
