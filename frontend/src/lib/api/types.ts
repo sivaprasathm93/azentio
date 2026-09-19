@@ -25,7 +25,8 @@ import type {
 export interface SentinelApi {
   readonly mode: 'mock' | 'live'
 
-  login(username: string, password: string): Promise<Session>
+  /** Who the app is acting as. Live mode probes the backend to work out the roles of its service account. */
+  whoami(): Promise<Session>
 
   listAlerts(q?: AlertQuery): Promise<Page<Alert>>
   getAlert(id: string): Promise<AlertDetail>

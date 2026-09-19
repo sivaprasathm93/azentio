@@ -2,6 +2,8 @@ const env = import.meta.env
 
 export const config = {
   mode: (env.VITE_API_MODE === 'live' ? 'live' : 'mock') as 'live' | 'mock',
+  /** Username of the service account the proxy authenticates as; used to recognise "my" alerts. */
+  apiUser: (env.VITE_API_USER as string | undefined) ?? 'analyst',
   wsPath: (env.VITE_WS_PATH as string | undefined) ?? '/ws',
   alertTopic: (env.VITE_ALERT_TOPIC as string | undefined) ?? '/topic/alerts',
   /** Currency the backend normalises amounts into (application.yml: sentinel.base-currency). */

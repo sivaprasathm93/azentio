@@ -3,7 +3,6 @@ import type {
   Alert,
   AlertDetail,
   AmlCase,
-  AuditEntry,
   CaseDetail,
   CaseStatus,
   Disposition,
@@ -13,7 +12,7 @@ import type {
 import { ApiError } from '../client'
 import { baselineFromAlerts, estimateImpact } from '../simulation'
 import { sleep } from '@/lib/utils'
-import { addAlertNotifier, getDb, type MockDb } from './data'
+import { getDb, type MockDb } from './data'
 
 /* The mock behaves like the real backend: same state machines, same role gates, same guardrail messages. */
 
@@ -46,7 +45,6 @@ function resolved(d: MockDb, a: AlertDetail): AlertDetail {
 
 function summary(a: AlertDetail): Alert {
   const { explanation, disposition, dispositionReason, disposedBy, disposedAt, caseRef, customer, transactions, ...rest } = a
-  void explanation, disposition, dispositionReason, disposedBy, disposedAt, caseRef, customer, transactions
   return clone(rest)
 }
 
@@ -151,10 +149,8 @@ function guardrails(code: string, enabled: boolean, weight: number, p: Record<st
 export const mockApi: SentinelApi = {
   mode: 'mock',
 
-  async login(username) {
+  async whoami() {
     await latency()
-    const roles: Role[] = username === 'admin' ? ['ANALYST', 'SUPERVISOR', 'ADMIN'] : username === 'supervisor' ? ['ANALYST', 'SUPERVISOR'] : ['ANALYST']
-    user = { username, roles }
     return user
   },
 
@@ -417,6 +413,3 @@ export const mockApi: SentinelApi = {
     }
   },
 }
-
-export type { AuditEntry }
-export { addAlertNotifier }

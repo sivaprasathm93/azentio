@@ -24,28 +24,10 @@ export class ApiError extends Error {
   }
 }
 
-let authHeader: (() => string | null) | null = null
-let onUnauthorized: (() => void) | null = null
-
-export function configureClient(opts: { authHeader: () => string | null; onUnauthorized: () => void }) {
-  authHeader = opts.authHeader
-  onUnauthorized = opts.onUnauthorized
-}
-
-export function basicAuth(username: string, password: string) {
-  // btoa is Latin-1 only; encode to UTF-8 bytes first so non-ASCII passwords work.
-  const bytes = new TextEncoder().encode(`${username}:${password}`)
-  let bin = ''
-  bytes.forEach((b) => (bin += String.fromCharCode(b)))
-  return `Basic ${btoa(bin)}`
-}
-
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   query?: Record<string, string | number | boolean | string[] | undefined | null>
   body?: unknown
-  /** Explicit Authorization header (used by login before a session exists). */
-  authorization?: string
   signal?: AbortSignal
 }
 
@@ -58,8 +40,6 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = { Accept: 'application/json' }
-  const auth = opts.authorization ?? authHeader?.()
-  if (auth) headers.Authorization = auth
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
 
   let res: Response
@@ -75,8 +55,6 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     throw new ApiError(0, 'NETWORK', 'Cannot reach the Sentinel API. Check that the backend is running and try again.')
   }
 
-  if (res.status === 401 && !opts.authorization) onUnauthorized?.()
-
   if (!res.ok) {
     let body: Partial<ApiErrorBody> = {}
     try {
@@ -84,7 +62,12 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, body.code ?? `HTTP_${res.status}`, body.message ?? res.statusText ?? 'Request failed', body.fieldErrors)
+    // Credentials are attached by the dev proxy / nginx, so a 401 means the proxy is misconfigured, not that the user should sign in.
+    const message =
+      res.status === 401
+        ? 'The backend rejected the service credentials configured for this frontend. Check BACKEND_USER / BACKEND_PASSWORD (dev) or BACKEND_BASIC_AUTH (Docker).'
+        : (body.message ?? res.statusText ?? 'Request failed')
+    throw new ApiError(res.status, body.code ?? `HTTP_${res.status}`, message, body.fieldErrors)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T

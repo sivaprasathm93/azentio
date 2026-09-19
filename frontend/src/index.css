@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Palette: steel paper + ink rail + one indigo action colour. Risk hues are the only saturated colours. */
+:root {
+  --bg: #edf0f4;
+  --panel: #ffffff;
+  --panel-2: #f5f7fa;
+  --ink: #0e1726;
+  --muted: #5b6778;
+  --line: #d6dce4;
+  --line-strong: #b9c2cf;
+  --primary: #3a48c6;
+  --primary-fg: #ffffff;
+  --rail: #0e1726;
+  --rail-fg: #c9d2e3;
+  --rail-line: #1f2b42;
+
+  --risk-critical: #d7263d;
+  --risk-high: #e8590c;
+  --risk-medium: #b98700;
+  --risk-low: #1e8e6b;
+
+  --ok: #1e8e6b;
+  --chart-grid: #e3e8ee;
+  --chart-line: #3a48c6;
+  --chart-band: rgba(58, 72, 198, 0.13);
+  --radius: 6px;
+}
+
+.dark {
+  --bg: #0a0f1a;
+  --panel: #0f1626;
+  --panel-2: #141c30;
+  --ink: #e6eaf2;
+  --muted: #8b97ab;
+  --line: #222c42;
+  --line-strong: #33415f;
+  --primary: #8391ff;
+  --primary-fg: #0a0f1a;
+  --rail: #070b14;
+  --rail-fg: #aab5ca;
+  --rail-line: #172036;
+
+  --risk-critical: #ff5468;
+  --risk-high: #ff8a3d;
+  --risk-medium: #f2c230;
+  --risk-low: #3dd3a2;
+
+  --ok: #3dd3a2;
+  --chart-grid: #1b2439;
+  --chart-line: #8391ff;
+  --chart-band: rgba(131, 145, 255, 0.16);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-rail: var(--rail);
+  --color-rail-fg: var(--rail-fg);
+  --color-rail-line: var(--rail-line);
+  --color-critical: var(--risk-critical);
+  --color-high: var(--risk-high);
+  --color-medium: var(--risk-medium);
+  --color-low: var(--risk-low);
+  --color-ok: var(--ok);
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Archivo', 'Public Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--line);
+}
+
+/* Labels: condensed caps, used only where a label names a region or a column. */
+.eyebrow {
+  font-family: var(--font-display);
+  font-stretch: 78%;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-stretch: 88%;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Thin, quiet scrollbars for dense panes. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@keyframes flash-in {
+  0% {
+    background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.flash-new {
+  animation: flash-in 2.4s ease-out 1;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-new,
+  .pulse-dot {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* React Flow theming to the tokens */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke-default: var(--line-strong);
+  --xy-controls-button-background-color-default: var(--panel);
+  --xy-controls-button-color-default: var(--ink);
+  --xy-controls-button-border-color-default: var(--line);
+  --xy-minimap-background-color-default: var(--panel-2);
+}
+.react-flow__attribution {
+  display: none;
+}

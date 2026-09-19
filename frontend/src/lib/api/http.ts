@@ -14,7 +14,8 @@ import type {
   BeWatchlistEntry,
 } from '@/types/backend'
 import type { Role, Session, SimulationResult } from '@/types/domain'
-import { ApiError, basicAuth, request } from './client'
+import { ApiError, request } from './client'
+import { config } from '@/lib/config'
 import {
   toAlert,
   toAlertDetail,
@@ -46,15 +47,14 @@ async function fullCaseDetail(id: string | number): Promise<ReturnType<typeof to
 export const httpApi: SentinelApi = {
   mode: 'live',
 
-  async login(username, password): Promise<Session> {
-    const authorization = basicAuth(username, password)
-    // /rules is readable by every authenticated role, so it doubles as the credential check.
-    await request('/rules', { authorization })
+  async whoami(): Promise<Session> {
+    // /rules is readable by every role, so it doubles as the connectivity / credentials check.
+    await request('/rules')
 
     // There is no /me endpoint. Probe two endpoints whose *authorisation* differs by role; neither has side effects.
     const roles: Role[] = ['ANALYST']
     try {
-      await request('/audit', { authorization })
+      await request('/audit')
       roles.push('SUPERVISOR')
     } catch (e) {
       if (!(e instanceof ApiError && e.isForbidden)) throw e
@@ -62,12 +62,12 @@ export const httpApi: SentinelApi = {
     if (roles.includes('SUPERVISOR')) {
       try {
         // Security config gates /detection/** to ADMIN by URL, so a non-admin gets 403 before routing.
-        await request('/detection/whoami', { authorization })
+        await request('/detection/whoami')
       } catch (e) {
         if (e instanceof ApiError && !e.isForbidden && e.status !== 401 && e.status !== 0) roles.push('ADMIN')
       }
     }
-    return { username, roles }
+    return { username: config.apiUser, roles }
   },
 
   async listAlerts(q = {}) {
@@ -179,8 +179,8 @@ export const httpApi: SentinelApi = {
     }
     const [rule, alerts, watch] = await Promise.all([
       request<BeRuleConfig>(`/rules/${req.code}`),
-      this.listAlerts({ ruleCode: req.code, size: 200 }),
-      this.listWatchlist(),
+      httpApi.listAlerts({ ruleCode: req.code, size: 200 }),
+      httpApi.listWatchlist(),
     ])
     const activeCountries = watch.filter((w) => w.entryType === 'COUNTRY' && w.active).length
     return estimateImpact(

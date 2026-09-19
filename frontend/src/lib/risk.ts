@@ -1,4 +1,4 @@
-import type { KycTier, RiskBand } from '@/types/domain'
+import type { Alert, KycTier, RiskBand } from '@/types/domain'
 
 /**
  * Single source of truth for score -> band. Note the backend's own `riskBand` uses CRITICAL >= 80; the UI
@@ -61,4 +61,11 @@ export const KYC_TIER_LABEL: Record<KycTier, string> = {
   1: 'Tier 1 · Standard',
   2: 'Tier 2 · Enhanced',
   3: 'Tier 3 · High-risk EDD',
+}
+
+/** Mirrors the backend four-eyes guardrail: score >= 80 or any sanctions/high-risk-jurisdiction hit needs a supervisor to close. */
+export const SUPERVISOR_CLOSE_SCORE = 80
+
+export function requiresSupervisor(a: Pick<Alert, 'overallScore' | 'evidence'>) {
+  return a.overallScore >= SUPERVISOR_CLOSE_SCORE || a.evidence.some((e) => e.ruleId === 'HIGH_RISK_JURISDICTION')
 }
