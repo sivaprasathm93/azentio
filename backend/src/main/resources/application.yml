@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: sentinel-aml
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sentinel}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none   # Flyway owns the schema
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 500
+        order_inserts: true
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+
+sentinel:
+  base-currency: INR
+  # "Daily" behavioural baselines are computed on the bank's business day.
+  business-zone: Asia/Kolkata
+  detection:
+    threads: ${SENTINEL_DETECTION_THREADS:8}
+    # Hits for the same customer within this window are folded into one open alert.
+    aggregation-window-hours: 72
+  # Loss-prevention guardrails (see README "Guardrails")
+  guardrails:
+    hold-score: 80
+    supervisor-close-score: 80
+    auto-freeze-on-sanctions: true
+    redrive-after-minutes: 5
+  users:
+    - username: ${SENTINEL_ANALYST_USER:analyst}
+      password: ${SENTINEL_ANALYST_PASSWORD}
+      roles: [ANALYST]
+    - username: ${SENTINEL_SUPERVISOR_USER:supervisor}
+      password: ${SENTINEL_SUPERVISOR_PASSWORD}
+      roles: [ANALYST, SUPERVISOR]
+    - username: ${SENTINEL_ADMIN_USER:admin}
+      password: ${SENTINEL_ADMIN_PASSWORD}
+      roles: [ANALYST, SUPERVISOR, ADMIN]
+
+logging:
+  level:
+    com.meridian.sentinel: INFO

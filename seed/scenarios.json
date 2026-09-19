@@ -1,0 +1,328 @@
+{
+  "generatedFor": "2026-09-18",
+  "windowDays": 120,
+  "typologies": {
+    "STRUCTURING": [
+      {
+        "customerRef": "C00172",
+        "note": "5 cash deposits just below USD 10k on day 95"
+      },
+      {
+        "customerRef": "C00136",
+        "note": "5 cash deposits just below USD 10k on day 117"
+      },
+      {
+        "customerRef": "C00295",
+        "note": "4 cash deposits just below USD 10k on day 76"
+      },
+      {
+        "customerRef": "C00151",
+        "note": "4 cash deposits just below USD 10k on day 99"
+      },
+      {
+        "customerRef": "C00163",
+        "note": "5 cash deposits just below USD 10k on day 86"
+      },
+      {
+        "customerRef": "C00087",
+        "note": "3 cash deposits just below USD 10k on day 49"
+      },
+      {
+        "customerRef": "C00227",
+        "note": "4 cash deposits just below USD 10k on day 105"
+      },
+      {
+        "customerRef": "C00276",
+        "note": "4 cash deposits just below USD 10k on day 86"
+      },
+      {
+        "customerRef": "C00018",
+        "note": "4 cash deposits just below USD 10k on day 78"
+      },
+      {
+        "customerRef": "C00234",
+        "note": "4 cash deposits just below USD 10k on day 94"
+      },
+      {
+        "customerRef": "C00474",
+        "note": "5 cash deposits just below USD 10k on day 58"
+      },
+      {
+        "customerRef": "C00066",
+        "note": "3 cash deposits just below USD 10k on day 60"
+      },
+      {
+        "customerRef": "C00150",
+        "note": "5 cash deposits just below USD 10k on day 72"
+      },
+      {
+        "customerRef": "C00431",
+        "note": "4 cash deposits just below USD 10k on day 49"
+      },
+      {
+        "customerRef": "C00332",
+        "note": "3 cash deposits just below USD 10k on day 52"
+      }
+    ],
+    "RAPID_MOVEMENT": [
+      {
+        "customerRef": "C00353",
+        "note": "INR 3,622,380 in and ~97% out within ~14h on day 61"
+      },
+      {
+        "customerRef": "C00205",
+        "note": "INR 2,803,490 in and ~95% out within ~36h on day 60"
+      },
+      {
+        "customerRef": "C00060",
+        "note": "INR 3,109,902 in and ~92% out within ~20h on day 75"
+      },
+      {
+        "customerRef": "C00323",
+        "note": "INR 1,399,291 in and ~91% out within ~24h on day 69"
+      },
+      {
+        "customerRef": "C00152",
+        "note": "INR 3,857,749 in and ~89% out within ~30h on day 71"
+      },
+      {
+        "customerRef": "C00119",
+        "note": "INR 1,390,834 in and ~98% out within ~20h on day 78"
+      },
+      {
+        "customerRef": "C00327",
+        "note": "INR 3,161,189 in and ~98% out within ~33h on day 104"
+      },
+      {
+        "customerRef": "C00194",
+        "note": "INR 1,731,996 in and ~88% out within ~22h on day 43"
+      },
+      {
+        "customerRef": "C00335",
+        "note": "INR 1,600,246 in and ~91% out within ~18h on day 48"
+      },
+      {
+        "customerRef": "C00154",
+        "note": "INR 3,352,791 in and ~92% out within ~16h on day 52"
+      },
+      {
+        "customerRef": "C00457",
+        "note": "INR 3,745,044 in and ~95% out within ~14h on day 98"
+      },
+      {
+        "customerRef": "C00379",
+        "note": "INR 1,721,761 in and ~91% out within ~30h on day 36"
+      }
+    ],
+    "HIGH_RISK_JURISDICTION": [
+      {
+        "customerRef": "C00035",
+        "note": "SWIFT transfer with MM on day 88"
+      },
+      {
+        "customerRef": "C00403",
+        "note": "SWIFT transfer with SY on day 11"
+      },
+      {
+        "customerRef": "C00377",
+        "note": "SWIFT transfer with SY on day 15"
+      },
+      {
+        "customerRef": "C00438",
+        "note": "SWIFT transfer with SY on day 92"
+      },
+      {
+        "customerRef": "C00319",
+        "note": "SWIFT transfer with IR on day 28"
+      },
+      {
+        "customerRef": "C00307",
+        "note": "SWIFT transfer with IR on day 114"
+      },
+      {
+        "customerRef": "C00271",
+        "note": "SWIFT transfer with IR on day 45"
+      },
+      {
+        "customerRef": "C00073",
+        "note": "SWIFT transfer with KP on day 20"
+      },
+      {
+        "customerRef": "C00415",
+        "note": "SWIFT transfer with IR on day 39"
+      },
+      {
+        "customerRef": "C00218",
+        "note": "SWIFT transfer with SY on day 93"
+      },
+      {
+        "customerRef": "C00224",
+        "note": "payment to watch-listed counterparty 'Orion Shell Holdings Ltd' on day 91"
+      },
+      {
+        "customerRef": "C00001",
+        "note": "payment to watch-listed counterparty 'Blue Lagoon Trading FZE' on day 76"
+      }
+    ],
+    "BEHAVIORAL_DEVIATION": [
+      {
+        "customerRef": "C00228",
+        "note": "4 transfers totalling INR 619,642 on day 109"
+      },
+      {
+        "customerRef": "C00148",
+        "note": "7 transfers totalling INR 1,337,251 on day 119"
+      },
+      {
+        "customerRef": "C00421",
+        "note": "5 transfers totalling INR 769,794 on day 110"
+      },
+      {
+        "customerRef": "C00422",
+        "note": "7 transfers totalling INR 1,081,359 on day 115"
+      },
+      {
+        "customerRef": "C00174",
+        "note": "4 transfers totalling INR 590,632 on day 102"
+      },
+      {
+        "customerRef": "C00192",
+        "note": "7 transfers totalling INR 1,056,982 on day 111"
+      },
+      {
+        "customerRef": "C00423",
+        "note": "6 transfers totalling INR 876,011 on day 100"
+      },
+      {
+        "customerRef": "C00120",
+        "note": "4 transfers totalling INR 596,482 on day 96"
+      },
+      {
+        "customerRef": "C00287",
+        "note": "5 transfers totalling INR 926,661 on day 94"
+      },
+      {
+        "customerRef": "C00214",
+        "note": "7 transfers totalling INR 1,271,084 on day 93"
+      }
+    ],
+    "ROUND_AMOUNT": [
+      {
+        "customerRef": "C00310",
+        "note": "4 round-amount transfers from day 22"
+      },
+      {
+        "customerRef": "C00359",
+        "note": "3 round-amount transfers from day 78"
+      },
+      {
+        "customerRef": "C00164",
+        "note": "4 round-amount transfers from day 28"
+      },
+      {
+        "customerRef": "C00331",
+        "note": "4 round-amount transfers from day 61"
+      },
+      {
+        "customerRef": "C00447",
+        "note": "5 round-amount transfers from day 41"
+      },
+      {
+        "customerRef": "C00204",
+        "note": "3 round-amount transfers from day 86"
+      },
+      {
+        "customerRef": "C00165",
+        "note": "4 round-amount transfers from day 44"
+      },
+      {
+        "customerRef": "C00432",
+        "note": "4 round-amount transfers from day 53"
+      },
+      {
+        "customerRef": "C00496",
+        "note": "3 round-amount transfers from day 100"
+      },
+      {
+        "customerRef": "C00275",
+        "note": "5 round-amount transfers from day 67"
+      }
+    ],
+    "CTR_THRESHOLD": [
+      {
+        "customerRef": "C00252",
+        "note": "single RTGS of INR 1,612,219 (property purchase) on day 91"
+      },
+      {
+        "customerRef": "C00064",
+        "note": "single RTGS of INR 2,894,698 (property purchase) on day 91"
+      },
+      {
+        "customerRef": "C00255",
+        "note": "single RTGS of INR 2,162,905 (property purchase) on day 34"
+      },
+      {
+        "customerRef": "C00317",
+        "note": "single RTGS of INR 2,415,340 (property purchase) on day 49"
+      },
+      {
+        "customerRef": "C00292",
+        "note": "single RTGS of INR 2,558,056 (property purchase) on day 87"
+      },
+      {
+        "customerRef": "C00094",
+        "note": "single RTGS of INR 2,073,802 (property purchase) on day 28"
+      },
+      {
+        "customerRef": "C00285",
+        "note": "single RTGS of INR 1,056,454 (property purchase) on day 59"
+      },
+      {
+        "customerRef": "C00044",
+        "note": "single RTGS of INR 2,613,509 (property purchase) on day 97"
+      },
+      {
+        "customerRef": "C00222",
+        "note": "single RTGS of INR 2,709,108 (property purchase) on day 59"
+      },
+      {
+        "customerRef": "C00437",
+        "note": "single RTGS of INR 1,631,962 (property purchase) on day 6"
+      },
+      {
+        "customerRef": "C00267",
+        "note": "single RTGS of INR 1,737,758 (property purchase) on day 2"
+      },
+      {
+        "customerRef": "C00115",
+        "note": "single RTGS of INR 1,444,330 (property purchase) on day 43"
+      },
+      {
+        "customerRef": "C00133",
+        "note": "single RTGS of INR 1,036,381 (property purchase) on day 15"
+      },
+      {
+        "customerRef": "C00007",
+        "note": "single RTGS of INR 1,231,743 (property purchase) on day 50"
+      },
+      {
+        "customerRef": "C00483",
+        "note": "single RTGS of INR 2,426,229 (property purchase) on day 65"
+      }
+    ],
+    "LAYERING_RING": [
+      {
+        "customerRef": "C00038",
+        "note": "structuring + pass-through to sanctioned party + IR wire from day 115"
+      },
+      {
+        "customerRef": "C00175",
+        "note": "structuring + pass-through to sanctioned party + IR wire from day 111"
+      },
+      {
+        "customerRef": "C00178",
+        "note": "structuring + pass-through to sanctioned party + IR wire from day 117"
+      }
+    ]
+  }
+}

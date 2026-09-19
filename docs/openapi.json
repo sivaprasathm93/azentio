@@ -1,0 +1,2731 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "Sentinel AML API",
+        "description": "Transaction monitoring: ingestion, rule-based detection, alerts and case management. Roles: ANALYST (queue & disposition), SUPERVISOR (+ full PII, case closure, reopen), ADMIN (+ ingestion, rule/watchlist/FX configuration).",
+        "version": "v1"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080",
+            "description": "Generated server url"
+        }
+    ],
+    "security": [
+        {
+            "basic": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "Reference data",
+            "description": "Exchange rates (base currency normalisation) and high-risk / sanctions watchlist"
+        },
+        {
+            "name": "Audit",
+            "description": "Immutable audit trail"
+        },
+        {
+            "name": "Customers",
+            "description": "Customer lookup, accounts and transaction timeline"
+        },
+        {
+            "name": "Ingestion",
+            "description": "Bulk (JSON/CSV) and streaming ingestion of KYC, account and transaction data"
+        },
+        {
+            "name": "Accounts",
+            "description": "Account holds placed by the loss-prevention guardrails"
+        },
+        {
+            "name": "Dashboard",
+            "description": "Queue health, risk heatmap and analyst productivity metrics"
+        },
+        {
+            "name": "Alerts",
+            "description": "Analyst alert queue, evidence and disposition workflow"
+        },
+        {
+            "name": "Rules",
+            "description": "View and tune detection rules at runtime (no redeployment)"
+        },
+        {
+            "name": "Cases",
+            "description": "Investigation case management"
+        },
+        {
+            "name": "Detection",
+            "description": "Operational controls for the detection engine"
+        }
+    ],
+    "paths": {
+        "/api/v1/fx-rates/{currency}": {
+            "put": {
+                "tags": [
+                    "Reference data"
+                ],
+                "summary": "Create or update the rate to the base currency (applies to transactions ingested afterwards)",
+                "description": "Guardrail: a move of more than 10% is rejected with 422 FX_RATE_DEVIATION unless confirmLargeChange=true",
+                "operationId": "setRate",
+                "parameters": [
+                    {
+                        "name": "currency",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "pattern": "[A-Z]{3}",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RateUpdate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ExchangeRate"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/watchlist": {
+            "get": {
+                "tags": [
+                    "Reference data"
+                ],
+                "operationId": "watchlist",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/WatchlistEntry"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Reference data"
+                ],
+                "operationId": "add",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewWatchlistEntry"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WatchlistEntry"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Streaming ingestion of a single transaction; evaluated synchronously and returns any alert raised",
+                "description": "400 invalid payload, 409 duplicate txnRef, 422 unknown account / unsupported currency",
+                "operationId": "stream",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TransactionRecord"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StreamResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/transactions": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk load transactions from a JSON array, then run detection in parallel (detect=false to skip)",
+                "operationId": "transactions",
+                "parameters": [
+                    {
+                        "name": "detect",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/TransactionRecord"
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/transactions/csv": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk load transactions from CSV, then run detection in parallel (detect=false to skip)",
+                "operationId": "transactionsCsv",
+                "parameters": [
+                    {
+                        "name": "detect",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/customers": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk upsert customers (KYC) from a JSON array; invalid rows are rejected individually",
+                "operationId": "customers",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CustomerRecord"
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/customers/csv": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk upsert customers from CSV (header row; camelCase or snake_case columns)",
+                "operationId": "customersCsv",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/accounts": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk upsert accounts from a JSON array; customerRef must already exist",
+                "operationId": "accounts",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/AccountRecord"
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/accounts/csv": {
+            "post": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Bulk upsert accounts from CSV",
+                "operationId": "accountsCsv",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IngestionResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/detection/run-pending": {
+            "post": {
+                "tags": [
+                    "Detection"
+                ],
+                "summary": "Evaluate every transaction not yet evaluated (loaded with detect=false, or after a failure)",
+                "operationId": "runPending",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Summary"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cases": {
+            "get": {
+                "tags": [
+                    "Cases"
+                ],
+                "summary": "Cases, most recently updated first",
+                "operationId": "list_2",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "OPEN",
+                                    "INVESTIGATING",
+                                    "SAR_FILED",
+                                    "CLOSED"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "minimum": 0,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "maximum": 200,
+                            "minimum": 1,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 25
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageResponseAmlCase"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Cases"
+                ],
+                "summary": "Open a case from one or more alerts of the same customer (alerts become ESCALATED)",
+                "operationId": "create",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateCase"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CaseDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cases/{id}/transition": {
+            "post": {
+                "tags": [
+                    "Cases"
+                ],
+                "summary": "Move a case: INVESTIGATING | SAR_FILED (SUPERVISOR) | CLOSED (SUPERVISOR; closes escalated alerts)",
+                "description": "409 for a transition not allowed from the current status, 403 if the role is insufficient",
+                "operationId": "transition",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Transition"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CaseDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cases/{id}/notes": {
+            "post": {
+                "tags": [
+                    "Cases"
+                ],
+                "operationId": "addNote",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewNote"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CaseNote"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cases/{id}/assign": {
+            "post": {
+                "tags": [
+                    "Cases"
+                ],
+                "operationId": "assign",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Assign"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CaseDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/actions": {
+            "post": {
+                "tags": [
+                    "Alerts"
+                ],
+                "summary": "START_REVIEW | CLOSE (disposition + reason) | ESCALATE (reason, optional caseId) | REOPEN (SUPERVISOR)",
+                "description": "409 if the action is not allowed from the alert's current status; 422 if disposition/reason is missing",
+                "operationId": "act",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ActionRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AlertDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts/{id}/unfreeze": {
+            "post": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Lift an automatic freeze (SUPERVISOR only, reason required, audited)",
+                "description": "409 if the account is not frozen",
+                "operationId": "unfreeze",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Unfreeze"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Account"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/watchlist/{id}": {
+            "patch": {
+                "tags": [
+                    "Reference data"
+                ],
+                "summary": "Activate / deactivate an entry (entries are never deleted, for auditability)",
+                "operationId": "toggle",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WatchlistToggle"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WatchlistEntry"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{code}": {
+            "get": {
+                "tags": [
+                    "Rules"
+                ],
+                "operationId": "get",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RuleConfig"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Rules"
+                ],
+                "summary": "Toggle / re-weight / tune a rule. params are merged over the current ones and validated; 422 if invalid. Takes effect for the next evaluated transaction.",
+                "operationId": "update",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RuleUpdate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RuleConfig"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules": {
+            "get": {
+                "tags": [
+                    "Rules"
+                ],
+                "summary": "All rules with current thresholds, weights and version",
+                "operationId": "list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/RuleConfig"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rules/{code}/history": {
+            "get": {
+                "tags": [
+                    "Rules"
+                ],
+                "summary": "Every past version of a rule's configuration",
+                "operationId": "history",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/RuleConfigHistory"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/batches": {
+            "get": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Recent ingestion batches (from the audit log)",
+                "operationId": "batches",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ingest/batches/{batchId}/errors": {
+            "get": {
+                "tags": [
+                    "Ingestion"
+                ],
+                "summary": "Rejected rows of a batch with the reason for each",
+                "operationId": "errors",
+                "parameters": [
+                    {
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/fx-rates": {
+            "get": {
+                "tags": [
+                    "Reference data"
+                ],
+                "operationId": "rates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ExchangeRate"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dashboard/summary": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Counts by status, rule x risk-band heatmap, 30-day trend and disposition metrics",
+                "operationId": "summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/customers": {
+            "get": {
+                "tags": [
+                    "Customers"
+                ],
+                "summary": "Customers (PII masked), optionally filtered by reference prefix or KYC risk",
+                "operationId": "list_1",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "riskRating",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "LOW",
+                                "MEDIUM",
+                                "HIGH"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "minimum": 0,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "maximum": 200,
+                            "minimum": 1,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 25
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageResponseCustomerSummary"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/customers/{id}": {
+            "get": {
+                "tags": [
+                    "Customers"
+                ],
+                "summary": "Customer detail with accounts. Full PII only for SUPERVISOR/ADMIN (and audited)",
+                "operationId": "get_1",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomerDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/customers/{id}/transactions": {
+            "get": {
+                "tags": [
+                    "Customers"
+                ],
+                "summary": "Transaction timeline across all accounts, with the alerts each transaction is evidence for",
+                "operationId": "timeline",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "maximum": 5000,
+                            "minimum": 1,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/TimelineTxn"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cases/{id}": {
+            "get": {
+                "tags": [
+                    "Cases"
+                ],
+                "operationId": "get_2",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CaseDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/audit": {
+            "get": {
+                "tags": [
+                    "Audit"
+                ],
+                "summary": "Audit entries for one entity (e.g. entityType=ALERT&entityId=ALT-100001), or the latest 200",
+                "operationId": "list_3",
+                "parameters": [
+                    {
+                        "name": "entityType",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "entityId",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AuditLog"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts": {
+            "get": {
+                "tags": [
+                    "Alerts"
+                ],
+                "summary": "Alert queue (PII masked), highest risk first by default",
+                "operationId": "list_4",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "OPEN",
+                                    "UNDER_REVIEW",
+                                    "ESCALATED",
+                                    "CLOSED"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "minScore",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    {
+                        "name": "ruleCode",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "customerId",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "assignee",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "minimum": 0,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "maximum": 200,
+                            "minimum": 1,
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 25
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "default": "riskScore"
+                        }
+                    },
+                    {
+                        "name": "direction",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "default": "desc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageResponseAlertSummary"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}": {
+            "get": {
+                "tags": [
+                    "Alerts"
+                ],
+                "summary": "Alert detail: explanation per rule, evidence transactions, customer (PII visible to SUPERVISOR+)",
+                "operationId": "get_3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AlertDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/alerts/{id}/history": {
+            "get": {
+                "tags": [
+                    "Alerts"
+                ],
+                "summary": "Immutable audit trail of this alert (creation, aggregation, every state transition)",
+                "operationId": "history_1",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AuditLog"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts": {
+            "get": {
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Accounts by status (e.g. status=FROZEN for accounts frozen after a sanctions hit)",
+                "operationId": "list_5",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "default": "FROZEN"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "RateUpdate": {
+                "required": [
+                    "rateToBase"
+                ],
+                "type": "object",
+                "properties": {
+                    "rateToBase": {
+                        "type": "number"
+                    },
+                    "confirmLargeChange": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "ExchangeRate": {
+                "type": "object",
+                "properties": {
+                    "currency": {
+                        "type": "string"
+                    },
+                    "rateToBase": {
+                        "type": "number"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedBy": {
+                        "type": "string"
+                    }
+                }
+            },
+            "NewWatchlistEntry": {
+                "required": [
+                    "entryType",
+                    "listName",
+                    "value"
+                ],
+                "type": "object",
+                "properties": {
+                    "entryType": {
+                        "pattern": "COUNTRY|COUNTERPARTY",
+                        "type": "string"
+                    },
+                    "value": {
+                        "maxLength": 200,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "listName": {
+                        "maxLength": 60,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "reason": {
+                        "maxLength": 300,
+                        "minLength": 0,
+                        "type": "string"
+                    }
+                }
+            },
+            "WatchlistEntry": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "entryType": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "string"
+                    },
+                    "listName": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "TransactionRecord": {
+                "required": [
+                    "accountNumber",
+                    "amount",
+                    "channel",
+                    "currency",
+                    "direction",
+                    "occurredAt",
+                    "txnRef"
+                ],
+                "type": "object",
+                "properties": {
+                    "txnRef": {
+                        "maxLength": 60,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "accountNumber": {
+                        "maxLength": 40,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "direction": {
+                        "pattern": "CREDIT|DEBIT",
+                        "type": "string"
+                    },
+                    "amount": {
+                        "type": "number"
+                    },
+                    "currency": {
+                        "pattern": "[A-Z]{3}",
+                        "type": "string"
+                    },
+                    "counterpartyName": {
+                        "maxLength": 200,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "counterpartyAccount": {
+                        "maxLength": 60,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "counterpartyCountry": {
+                        "pattern": "[A-Z]{2}",
+                        "type": "string"
+                    },
+                    "channel": {
+                        "pattern": "CASH|WIRE|NEFT|RTGS|IMPS|UPI|CARD|ATM|CHEQUE|SWIFT",
+                        "type": "string"
+                    },
+                    "jurisdiction": {
+                        "pattern": "[A-Z]{2}",
+                        "type": "string"
+                    },
+                    "occurredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "Outcome": {
+                "type": "object",
+                "properties": {
+                    "txnId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "txnRef": {
+                        "type": "string"
+                    },
+                    "rulesFired": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "alertId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "alertRef": {
+                        "type": "string"
+                    },
+                    "alertCreated": {
+                        "type": "boolean"
+                    },
+                    "riskScore": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "decision": {
+                        "type": "string",
+                        "enum": [
+                            "ALLOW",
+                            "REVIEW",
+                            "HOLD"
+                        ]
+                    },
+                    "decisionReasons": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "accountFrozen": {
+                        "type": "boolean"
+                    },
+                    "degraded": {
+                        "type": "boolean"
+                    },
+                    "skipped": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "StreamResult": {
+                "type": "object",
+                "properties": {
+                    "transactionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "txnRef": {
+                        "type": "string"
+                    },
+                    "amountBase": {
+                        "type": "number"
+                    },
+                    "baseCurrency": {
+                        "type": "string"
+                    },
+                    "detection": {
+                        "$ref": "#/components/schemas/Outcome"
+                    },
+                    "latencyMs": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "IngestionResult": {
+                "type": "object",
+                "properties": {
+                    "batchId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "recordType": {
+                        "type": "string"
+                    },
+                    "received": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "accepted": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "duplicates": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "rejected": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/RowError"
+                        }
+                    },
+                    "errorsTruncated": {
+                        "type": "boolean"
+                    },
+                    "ingestMs": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "detection": {
+                        "$ref": "#/components/schemas/Summary"
+                    }
+                }
+            },
+            "RowError": {
+                "type": "object",
+                "properties": {
+                    "line": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Summary": {
+                "type": "object",
+                "properties": {
+                    "evaluated": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "transactionsWithHits": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "alertsCreated": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "alertsUpdated": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "failures": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "elapsedMs": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "txnPerSecond": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                }
+            },
+            "CustomerRecord": {
+                "required": [
+                    "country",
+                    "customerType",
+                    "externalRef",
+                    "fullName",
+                    "kycRiskRating",
+                    "nationalId"
+                ],
+                "type": "object",
+                "properties": {
+                    "externalRef": {
+                        "maxLength": 40,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "fullName": {
+                        "maxLength": 200,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "nationalId": {
+                        "maxLength": 40,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "dateOfBirth": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "customerType": {
+                        "pattern": "RETAIL|BUSINESS",
+                        "type": "string"
+                    },
+                    "country": {
+                        "pattern": "[A-Z]{2}",
+                        "type": "string"
+                    },
+                    "kycRiskRating": {
+                        "pattern": "LOW|MEDIUM|HIGH",
+                        "type": "string"
+                    }
+                }
+            },
+            "AccountRecord": {
+                "required": [
+                    "accountNumber",
+                    "accountType",
+                    "currency",
+                    "customerRef",
+                    "openedOn",
+                    "riskRating"
+                ],
+                "type": "object",
+                "properties": {
+                    "accountNumber": {
+                        "maxLength": 40,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "customerRef": {
+                        "maxLength": 40,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "accountType": {
+                        "pattern": "SAVINGS|CURRENT|BUSINESS|NRE|WALLET",
+                        "type": "string"
+                    },
+                    "currency": {
+                        "pattern": "[A-Z]{3}",
+                        "type": "string"
+                    },
+                    "openedOn": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "riskRating": {
+                        "pattern": "LOW|MEDIUM|HIGH",
+                        "type": "string"
+                    },
+                    "status": {
+                        "pattern": "ACTIVE|DORMANT|FROZEN|CLOSED",
+                        "type": "string"
+                    }
+                }
+            },
+            "CreateCase": {
+                "required": [
+                    "alertIds",
+                    "reason"
+                ],
+                "type": "object",
+                "properties": {
+                    "alertIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    "title": {
+                        "maxLength": 200,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "reason": {
+                        "maxLength": 1000,
+                        "minLength": 0,
+                        "type": "string"
+                    }
+                }
+            },
+            "AlertSummary": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "alertRef": {
+                        "type": "string"
+                    },
+                    "customerId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "customerRef": {
+                        "type": "string"
+                    },
+                    "customerName": {
+                        "type": "string"
+                    },
+                    "customerRiskRating": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "riskScore": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "riskBand": {
+                        "type": "string"
+                    },
+                    "ruleCodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "hitCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "windowStart": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "windowEnd": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "assignee": {
+                        "type": "string"
+                    },
+                    "caseId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "AmlCase": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "caseRef": {
+                        "type": "string"
+                    },
+                    "customerId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "OPEN",
+                            "INVESTIGATING",
+                            "SAR_FILED",
+                            "CLOSED"
+                        ]
+                    },
+                    "priority": {
+                        "type": "string"
+                    },
+                    "assignee": {
+                        "type": "string"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    },
+                    "createdBy": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "rowVersion": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "AuditLog": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "entityType": {
+                        "type": "string"
+                    },
+                    "entityId": {
+                        "type": "string"
+                    },
+                    "action": {
+                        "type": "string"
+                    },
+                    "fromState": {
+                        "type": "string"
+                    },
+                    "toState": {
+                        "type": "string"
+                    },
+                    "actor": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "occurredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CaseDetail": {
+                "type": "object",
+                "properties": {
+                    "caseInfo": {
+                        "$ref": "#/components/schemas/AmlCase"
+                    },
+                    "customer": {
+                        "$ref": "#/components/schemas/CustomerView"
+                    },
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AlertSummary"
+                        }
+                    },
+                    "notes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CaseNote"
+                        }
+                    },
+                    "history": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AuditLog"
+                        }
+                    }
+                }
+            },
+            "CaseNote": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "caseId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "author": {
+                        "type": "string"
+                    },
+                    "body": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CustomerView": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "externalRef": {
+                        "type": "string"
+                    },
+                    "fullName": {
+                        "type": "string"
+                    },
+                    "nationalId": {
+                        "type": "string"
+                    },
+                    "dateOfBirth": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "customerType": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    },
+                    "kycRiskRating": {
+                        "type": "string"
+                    },
+                    "piiMasked": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "Transition": {
+                "required": [
+                    "status"
+                ],
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "OPEN",
+                            "INVESTIGATING",
+                            "SAR_FILED",
+                            "CLOSED"
+                        ]
+                    },
+                    "reason": {
+                        "maxLength": 1000,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "disposition": {
+                        "type": "string",
+                        "enum": [
+                            "FALSE_POSITIVE",
+                            "TRUE_POSITIVE",
+                            "NO_FURTHER_ACTION"
+                        ]
+                    }
+                }
+            },
+            "NewNote": {
+                "required": [
+                    "body"
+                ],
+                "type": "object",
+                "properties": {
+                    "body": {
+                        "maxLength": 4000,
+                        "minLength": 0,
+                        "type": "string"
+                    }
+                }
+            },
+            "Assign": {
+                "required": [
+                    "assignee"
+                ],
+                "type": "object",
+                "properties": {
+                    "assignee": {
+                        "maxLength": 60,
+                        "minLength": 0,
+                        "type": "string"
+                    }
+                }
+            },
+            "ActionRequest": {
+                "required": [
+                    "action"
+                ],
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "START_REVIEW",
+                            "CLOSE",
+                            "ESCALATE",
+                            "REOPEN"
+                        ]
+                    },
+                    "disposition": {
+                        "type": "string",
+                        "enum": [
+                            "FALSE_POSITIVE",
+                            "TRUE_POSITIVE",
+                            "NO_FURTHER_ACTION"
+                        ]
+                    },
+                    "reason": {
+                        "maxLength": 1000,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "caseId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "AlertDetail": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "$ref": "#/components/schemas/AlertSummary"
+                    },
+                    "explanation": {
+                        "type": "string"
+                    },
+                    "ruleDetails": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/RuleDetail"
+                        }
+                    },
+                    "disposition": {
+                        "type": "string"
+                    },
+                    "dispositionReason": {
+                        "type": "string"
+                    },
+                    "disposedBy": {
+                        "type": "string"
+                    },
+                    "disposedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "caseRef": {
+                        "type": "string"
+                    },
+                    "customer": {
+                        "$ref": "#/components/schemas/CustomerView"
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EvidenceTxn"
+                        }
+                    }
+                }
+            },
+            "EvidenceTxn": {
+                "type": "object",
+                "properties": {
+                    "transactionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "txnRef": {
+                        "type": "string"
+                    },
+                    "accountNumber": {
+                        "type": "string"
+                    },
+                    "direction": {
+                        "type": "string"
+                    },
+                    "amount": {
+                        "type": "number"
+                    },
+                    "currency": {
+                        "type": "string"
+                    },
+                    "amountBase": {
+                        "type": "number"
+                    },
+                    "counterpartyName": {
+                        "type": "string"
+                    },
+                    "counterpartyCountry": {
+                        "type": "string"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "jurisdiction": {
+                        "type": "string"
+                    },
+                    "occurredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "ruleCodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "RuleDetail": {
+                "type": "object",
+                "properties": {
+                    "severity": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "hits": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "ruleVersion": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "weight": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "explanation": {
+                        "type": "string"
+                    },
+                    "lastTxnRef": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Unfreeze": {
+                "required": [
+                    "reason"
+                ],
+                "type": "object",
+                "properties": {
+                    "reason": {
+                        "maxLength": 1000,
+                        "minLength": 10,
+                        "type": "string"
+                    }
+                }
+            },
+            "Account": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "accountNumber": {
+                        "type": "string"
+                    },
+                    "customerId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "accountType": {
+                        "type": "string"
+                    },
+                    "currency": {
+                        "type": "string"
+                    },
+                    "openedOn": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "riskRating": {
+                        "type": "string",
+                        "enum": [
+                            "LOW",
+                            "MEDIUM",
+                            "HIGH"
+                        ]
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "WatchlistToggle": {
+                "required": [
+                    "active"
+                ],
+                "type": "object",
+                "properties": {
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "reason": {
+                        "maxLength": 300,
+                        "minLength": 0,
+                        "type": "string"
+                    }
+                }
+            },
+            "RuleUpdate": {
+                "type": "object",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "weight": {
+                        "maximum": 100,
+                        "minimum": 0,
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "params": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "RuleConfig": {
+                "type": "object",
+                "properties": {
+                    "ruleCode": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "weight": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "params": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "version": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "updatedBy": {
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "RuleConfigHistory": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "ruleCode": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "weight": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "params": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "changedBy": {
+                        "type": "string"
+                    },
+                    "changedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CustomerSummary": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "externalRef": {
+                        "type": "string"
+                    },
+                    "fullName": {
+                        "type": "string"
+                    },
+                    "customerType": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    },
+                    "kycRiskRating": {
+                        "type": "string"
+                    },
+                    "accounts": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "openAlerts": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "maxOpenScore": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "PageResponseCustomerSummary": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomerSummary"
+                        }
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalElements": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "CustomerDetail": {
+                "type": "object",
+                "properties": {
+                    "customer": {
+                        "$ref": "#/components/schemas/CustomerView"
+                    },
+                    "accounts": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Account"
+                        }
+                    }
+                }
+            },
+            "TimelineTxn": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "txnRef": {
+                        "type": "string"
+                    },
+                    "accountNumber": {
+                        "type": "string"
+                    },
+                    "direction": {
+                        "type": "string"
+                    },
+                    "amount": {
+                        "type": "number"
+                    },
+                    "currency": {
+                        "type": "string"
+                    },
+                    "amountBase": {
+                        "type": "number"
+                    },
+                    "counterpartyName": {
+                        "type": "string"
+                    },
+                    "counterpartyCountry": {
+                        "type": "string"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "occurredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "alertRefs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "PageResponseAmlCase": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AmlCase"
+                        }
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalElements": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "PageResponseAlertSummary": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AlertSummary"
+                        }
+                    },
+                    "page": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalElements": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "basic": {
+                "type": "http",
+                "scheme": "basic"
+            }
+        }
+    }
+}
